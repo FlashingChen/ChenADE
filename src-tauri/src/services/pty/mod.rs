@@ -235,7 +235,7 @@ fn clean_shell_args(shell: &str) -> Vec<String> {
             .map(|value| value.to_string_lossy().to_lowercase())
             .unwrap_or_default();
         match name.as_str() {
-            "zsh" => Vec::new(),
+            "zsh" => vec!["-d".to_string()],
             "bash" => vec!["--noprofile".to_string(), "--norc".to_string()],
             "fish" => vec!["--no-config".to_string()],
             _ => Vec::new(),

@@ -250,7 +250,7 @@ mod tests {
         let target = dir.path().join("src/main.ts");
         let result = write_file(dir.path(), &target, "export const value = 2;\n").expect("write");
 
-        assert!(result.path.ends_with("src/main.ts"));
+        assert!(std::path::Path::new(&result.path).ends_with(std::path::Path::new("src").join("main.ts")));
         assert_eq!(result.size, 24);
         assert!(result.modified.is_some());
         assert_eq!(

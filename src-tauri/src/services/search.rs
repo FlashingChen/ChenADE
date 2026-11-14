@@ -193,8 +193,9 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].kind, "file");
         assert_eq!(hits[0].line, None);
-        assert_eq!(hits[0].preview.as_deref(), Some("src/readme-notes.txt"));
-        assert!(hits[0].path.ends_with("readme-notes.txt"));
+        let expected = std::path::Path::new("src").join("readme-notes.txt");
+        assert_eq!(hits[0].preview.as_deref(), Some(expected.to_string_lossy().as_ref()));
+        assert!(std::path::Path::new(&hits[0].path).ends_with("readme-notes.txt"));
     }
 
     #[test]

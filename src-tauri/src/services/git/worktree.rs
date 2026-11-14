@@ -447,7 +447,7 @@ mod create_tests {
 
         let created = create(&input, repo.path(), "main").expect("create");
         assert_eq!(created.branch.as_deref(), Some("feat/session-replay"));
-        assert!(created.path.ends_with(".worktrees/session-replay"));
+        assert!(std::path::Path::new(&created.path).ends_with(std::path::Path::new(".worktrees").join("session-replay")));
         assert!(Path::new(&created.path).join(".env.local").is_file());
         assert_eq!(created.dirty, 0);
     }
