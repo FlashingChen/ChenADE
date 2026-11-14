@@ -1,0 +1,111 @@
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.treeTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 6px;
+}
+
+.treeLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding-right: 7px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  text-align: left;
+  min-width: 0;
+}
+
+.row:hover {
+  background: var(--fill-3);
+}
+
+.chevron {
+  color: var(--text-5);
+  flex: 0 0 9px;
+  transition: transform 150ms ease;
+}
+
+.chevronSpacer {
+  width: 9px;
+  flex: 0 0 9px;
+}
+
+.folderIcon {
+  color: var(--text-4);
+  flex: 0 0 13px;
+}
+
+.fileIcon {
+  color: var(--text-4);
+  flex: 0 0 13px;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symlink {
+  font-size: 9px;
+  color: var(--text-5);
+  flex: 0 0 auto;
+}
+
+.code {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  flex: 0 0 auto;
+}
+
+.loading {
+  padding: 7px 8px;
+  font-size: 10.5px;
+  color: var(--text-5);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  background: var(--coral-bg);
+  color: var(--coral);
+  font-size: 10.5px;
+}
+
+.retry {
+  color: var(--coral);
+  text-decoration: underline;
+  font-size: 10.5px;
+  flex: 0 0 auto;
+}

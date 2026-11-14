@@ -1,0 +1,64 @@
+.statusbar {
+  flex: 0 0 var(--statusbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  font-size: 10px;
+  color: var(--text-4);
+  min-width: 0;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.right {
+  color: var(--text-5);
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-5);
+  flex: 0 0 5px;
+}
+
+.dot[data-state='loading'] {
+  background: var(--amber);
+  animation: ca-blink 1.1s steps(2, start) infinite;
+}
+
+.dot[data-state='idle'] {
+  background: var(--lime);
+  box-shadow: 0 0 0 3px rgba(181, 230, 85, 0.1);
+}
+
+.dim {
+  color: var(--text-faint);
+}
+
+.git {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kbdHint {
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .git,
+  .kbdHint {
+    display: none;
+  }
+}

@@ -1,0 +1,25 @@
+.button {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.button:hover {
+  background: var(--fill-3);
+  color: var(--text-1);
+}
+
+.button:disabled {
+  opacity: 0.4;
+  background: transparent;
+}
+
+.active {
+  background: var(--fill-3);
+  color: var(--text-1);
+}

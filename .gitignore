@@ -1,0 +1,77 @@
+# Written by baoyu-design when the editor first opened this folder: what only this computer's editor server needs.
+.artifact-server.json
+.artifact-server.log
+.sharing.json
+/history/
+/exports/
+*.tmp
+.tmp-*
+.DS_Store
+
+# ============================================================
+# ChenADE · 隐私红线：以下内容永远不进入 Git
+# 规则说明见 AGENTS.md（本文件自身也被忽略）
+# ============================================================
+
+# 代理规则与私有上下文
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# 官网设计与站点（本地进行中，不进入产品仓库）
+/OfficialWebsite/
+
+# 设计原型、设计历史、内部文档、笔记、对话与导出
+/project/
+/docs/
+/notes/
+/private/
+/scratch/
+/conversations/
+/transcripts/
+/screenshots/
+/captures/
+*.local.md
+*.private.md
+*.transcript.md
+
+# 密钥、凭据、环境变量、证书
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets.*
+credentials.*
+*.secret
+
+# 日志、数据库、缓存（可能含路径、命令与隐私）
+*.log
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/coverage/
+/.vite/
+/.turbo/
+/.cache/
+
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# 编辑器与系统
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

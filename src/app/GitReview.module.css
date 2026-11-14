@@ -1,0 +1,346 @@
+.page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 10px 8px;
+  background: var(--bg-island);
+  border: 1px solid var(--border);
+  border-radius: var(--r-island);
+  overflow: hidden;
+  box-shadow: var(--shadow-main);
+}
+
+.header {
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.headerMain {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.headerIcon {
+  color: var(--lime);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.header p {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.syncDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lime);
+}
+
+.syncText {
+  font-size: 10px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
+.error {
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--coral-bg);
+  border: 1px solid rgba(255, 138, 92, 0.28);
+  color: var(--coral);
+  font-size: 10.5px;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+}
+
+.commitList {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-soft);
+}
+
+.commitListHead {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+}
+
+.count {
+  font-size: 9.5px;
+  line-height: 15px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--fill-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+.loading {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--text-5);
+  letter-spacing: 0;
+}
+
+.commitScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px;
+}
+
+.commitRow {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  min-height: 54px;
+  padding: 7px 7px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.commitRow:hover {
+  background: var(--fill-3);
+}
+
+.commitSelected {
+  background: var(--fill-2);
+  box-shadow: inset 2px 0 0 var(--lime);
+}
+
+.graph {
+  position: relative;
+  width: 12px;
+  flex: 0 0 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.graphLine {
+  position: absolute;
+  bottom: -4px;
+  width: 2px;
+  background: rgba(181, 230, 85, 0.38);
+}
+
+.graphDot {
+  position: relative;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 0 3px rgba(181, 230, 85, 0.1);
+}
+
+.commitText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commitSubject {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitMeta {
+  font-size: 9.5px;
+  color: var(--text-5);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+
+.ref {
+  font-size: 9px;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(95, 208, 190, 0.1);
+  color: var(--teal);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffPane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-content);
+}
+
+.diffHead {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border-soft);
+  min-width: 0;
+}
+
+.diffSubject {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffMeta {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--text-5);
+  font-family: var(--font-mono);
+  flex: 0 0 auto;
+}
+
+.diffBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.detail {
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border-soft);
+  padding: 14px;
+}
+
+.detailLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+  margin-bottom: 10px;
+}
+
+.detailTitle {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+
+.detailMeta {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.detailRows {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 7px 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 10px;
+}
+
+.detailRows > span {
+  color: var(--text-4);
+}
+
+.detailRows code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mergeButton {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.backLink {
+  display: block;
+  margin: 10px auto 0;
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.backLink:hover {
+  color: var(--text-2);
+}
+
+.detailEmpty {
+  font-size: 11px;
+  color: var(--text-5);
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .detail {
+    display: none;
+  }
+}

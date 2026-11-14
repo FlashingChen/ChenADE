@@ -1,0 +1,229 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-island);
+  border: 1px solid var(--border);
+  border-radius: var(--r-island);
+  overflow: hidden;
+  box-shadow: var(--shadow-island);
+}
+
+.top {
+  padding: 10px 10px 0;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--fill-1);
+}
+
+.segment,
+.segmentActive {
+  flex: 1;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.segment:hover {
+  color: var(--text-2);
+}
+
+.segmentActive {
+  background: var(--fill-5);
+  color: var(--text-1);
+  box-shadow: var(--shadow-btn);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 14px 6px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.toolbarPath {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbarHint {
+  font-size: 9px;
+  color: var(--text-5);
+  font-family: var(--font-mono);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 12px 16px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+  margin: 4px 2px 7px;
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+
+.fileRow:hover {
+  background: var(--fill-3);
+}
+
+.fileRow > svg {
+  color: var(--text-4);
+}
+
+.filePath {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileCode {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  flex: 0 0 auto;
+}
+
+.note {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  background: var(--fill-1);
+  color: var(--text-5);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.commitCard {
+  padding: 10px;
+  border-radius: var(--r-xl);
+  background: var(--fill-1);
+  border: 1px solid var(--border-soft);
+  margin-bottom: 12px;
+}
+
+.commitSubject {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.commitMeta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
+.metaDot {
+  color: var(--text-faint);
+}
+
+.syncRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 26px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.syncLabel {
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.syncValue {
+  font-size: 10.5px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitPlaceholder {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--fill-1);
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+
+.commitPlaceholderHint {
+  color: var(--text-5);
+  line-height: 1.6;
+}
+
+.gitButton {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.footer {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.footerLink {
+  font-size: 10px;
+  color: var(--teal);
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}

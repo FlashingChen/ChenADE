@@ -1,0 +1,9 @@
+pub mod app;
+pub mod files;
+pub mod git;
+pub mod projects;
+pub mod pty;
+pub mod worktrees;
+pub mod activity;
+pub mod search;
+pub mod settings;

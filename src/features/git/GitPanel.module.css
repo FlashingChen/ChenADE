@@ -1,0 +1,205 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0;
+}
+
+.sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 2px 8px;
+  font-size: 10px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
+.syncStat {
+  flex: 0 0 auto;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+}
+
+.commits {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 4px 0 12px;
+}
+
+.commit {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 7px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.commit:hover {
+  background: var(--fill-3);
+}
+
+.commitGraph {
+  width: 2px;
+  align-self: stretch;
+  margin: 4px 0;
+  border-radius: 2px;
+  background: rgba(181, 230, 85, 0.45);
+  flex: 0 0 2px;
+}
+
+.commitBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commitSubject {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitMeta {
+  font-size: 9.5px;
+  color: var(--text-5);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref {
+  font-size: 9px;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(95, 208, 190, 0.1);
+  color: var(--teal);
+  flex: 0 0 auto;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  padding: 8px 4px;
+  font-size: 10.5px;
+  color: var(--text-5);
+}
+
+.commitBox {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commitBoxHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.changeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.warning {
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  color: var(--amber);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.warning code {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--amber-soft);
+}
+
+.error {
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  background: var(--coral-bg);
+  border: 1px solid rgba(255, 138, 92, 0.28);
+  color: var(--coral);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.commitBox textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--fill-1);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.commitBox textarea:focus {
+  border-color: rgba(181, 230, 85, 0.45);
+}
+
+.commitBox textarea::placeholder {
+  color: var(--text-5);
+}
+
+.commitBox textarea:disabled {
+  opacity: 0.5;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.primaryAction {
+  flex: 1;
+}
+
+.reviewLink {
+  align-self: flex-start;
+  font-size: 10px;
+  color: var(--teal);
+}
+
+.reviewLink:hover {
+  text-decoration: underline;
+}

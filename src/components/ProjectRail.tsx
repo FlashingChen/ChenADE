@@ -1,0 +1,296 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppStore } from '@/app/store';
+import { useWorktreesStore } from '@/features/worktrees/store';
+import { useUiStore } from '@/features/ui/store';
+import { shortPath } from '@/lib/format';
+import { call, toAppError } from '@/lib/ipc';
+import { confirmAction } from '@/lib/confirm';
+import { Button } from './Button';
+import { EmptyState } from './EmptyState';
+import { IconButton } from './IconButton';
+import {
+  BranchIcon,
+  ChevronIcon,
+  FolderIcon,
+  MoreIcon,
+  PlusIcon,
+  SearchIcon,
+} from './icons';
+import styles from './ProjectRail.module.css';
+
+export function ProjectRail() {
+  const projects = useAppStore((state) => state.projects);
+  const currentProjectId = useAppStore((state) => state.currentProjectId);
+  const selectProject = useAppStore((state) => state.selectProject);
+  const addProject = useAppStore((state) => state.addProject);
+  const removeProject = useAppStore((state) => state.removeProject);
+  const refreshProjects = useAppStore((state) => state.refreshProjects);
+  const notify = useAppStore((state) => state.notify);
+  const loading = useAppStore((state) => state.loading);
+
+  const worktrees = useWorktreesStore((state) => state.worktrees);
+  const worktreeProjectId = useWorktreesStore((state) => state.projectId);
+  const activeId = useWorktreesStore((state) => state.activeId);
+  const selectWorktree = useWorktreesStore((state) => state.select);
+  const loadingWorktrees = useWorktreesStore((state) => state.loading);
+
+  const openNewWorktree = useUiStore((state) => state.openNewWorktree);
+  const navigate = useNavigate();
+  const [filter, setFilter] = useState('');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
+
+  const query = filter.trim().toLowerCase();
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [menuOpen]);
+
+  const revealProject = async () => {
+    if (!currentProject) return;
+    try {
+      await call('project_reveal', { path: currentProject.path });
+    } catch (error) {
+      notify(toAppError(error).message, 'error');
+    }
+  };
+
+  const moveProject = async (direction: -1 | 1) => {
+    if (!currentProject) return;
+    const index = projects.findIndex((project) => project.id === currentProject.id);
+    const next = index + direction;
+    if (next < 0 || next >= projects.length) return;
+    const ids = projects.map((project) => project.id);
+    [ids[index], ids[next]] = [ids[next], ids[index]];
+    try {
+      await call('project_reorder', { ids });
+      await refreshProjects();
+    } catch (error) {
+      notify(toAppError(error).message, 'error');
+    }
+  };
+
+  const pruneWorktrees = async () => {
+    if (!currentProject) return;
+    try {
+      await call('worktree_prune', { projectId: currentProject.id });
+      await useWorktreesStore.getState().load(currentProject.id);
+      notify('已清理失效的工作树记录', 'success');
+    } catch (error) {
+      notify(toAppError(error).message, 'error');
+    }
+  };
+
+  const handleRemoveProject = async () => {
+    if (!currentProject) return;
+    if (!(await confirmAction(`移除项目「${currentProject.name}」？不会删除磁盘文件。`))) return;
+    await removeProject(currentProject.id);
+    setMenuOpen(false);
+  };
+
+  const visible = useMemo(() => {
+    return projects.filter((project) => {
+      if (!query) return true;
+      if (project.name.toLowerCase().includes(query)) return true;
+      if (project.path.toLowerCase().includes(query)) return true;
+      if (project.id === worktreeProjectId) {
+        return worktrees.some((worktree) =>
+          (worktree.branch ?? '').toLowerCase().includes(query),
+        );
+      }
+      return false;
+    });
+  }, [projects, query, worktreeProjectId, worktrees]);
+
+  const toggleProject = (id: string) => {
+    const isExpanded = expanded[id] ?? id === currentProjectId;
+    setExpanded((value) => ({ ...value, [id]: !isExpanded }));
+    if (!isExpanded && id !== currentProjectId) {
+      void selectProject(id);
+    }
+  };
+
+  const activateProject = (id: string) => {
+    setExpanded((value) => ({ ...value, [id]: true }));
+    void selectProject(id);
+  };
+
+  return (
+    <aside className={styles.rail}>
+      <div className={styles.header}>
+        <div className={styles.heading}>
+          项目
+          <span className={styles.count}>{projects.length}</span>
+        </div>
+        <div className={styles.headerMenuWrap} ref={menuRef}>
+          <IconButton label="项目菜单" onClick={() => setMenuOpen((value) => !value)} disabled={!currentProject}>
+            <MoreIcon size={14} />
+          </IconButton>
+          {menuOpen && currentProject ? (
+            <div className={styles.headerMenu} role="menu">
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); navigate(`/projects/${currentProject.id}`); }}>
+                项目总览
+              </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void revealProject(); }}>
+                在 Finder 中打开
+              </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void moveProject(-1); }} disabled={projects[0]?.id === currentProject.id}>
+                上移项目
+              </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void moveProject(1); }} disabled={projects[projects.length - 1]?.id === currentProject.id}>
+                下移项目
+              </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void pruneWorktrees(); }}>
+                清理失效工作树
+              </button>
+              <button className={styles.menuItemDanger} onClick={() => void handleRemoveProject()}>
+                移除项目
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className={styles.filter}>
+        <SearchIcon size={12} />
+        <input
+          aria-label="筛选工作树"
+          placeholder="筛选工作树"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+      </div>
+
+      <div className={styles.list}>
+        {projects.length === 0 && !loading ? (
+          <EmptyState
+            compact
+            icon={<BranchIcon size={18} />}
+            title="还没有项目"
+            description="添加一个本地 Git 仓库，ChenADE 会读出它的工作树。"
+            actions={
+              <Button variant="primary" size="sm" onClick={() => void addProject()}>
+                添加项目
+              </Button>
+            }
+          />
+        ) : null}
+
+        {visible.map((project) => {
+          const isCurrent = project.id === currentProjectId;
+          const isExpanded = query ? true : expanded[project.id] ?? isCurrent;
+          const projectWorktrees = isCurrent && worktreeProjectId === project.id ? worktrees : [];
+          const filteredWorktrees = query
+            ? projectWorktrees.filter((worktree) =>
+                (worktree.branch ?? '').toLowerCase().includes(query),
+              )
+            : projectWorktrees;
+
+          return (
+            <div key={project.id}>
+              <button
+                className={styles.projectRow}
+                onClick={() => activateProject(project.id)}
+                title={project.path}
+              >
+                <span
+                  className={styles.chevron}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleProject(project.id);
+                  }}
+                >
+                  <ChevronIcon
+                    size={10}
+                    style={{
+                      transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 180ms ease',
+                    }}
+                  />
+                </span>
+                <FolderIcon size={13} />
+                <span className={styles.projectName}>{project.name}</span>
+                <span className={styles.projectCount}>{project.worktreeCount}</span>
+              </button>
+
+              {isExpanded ? (
+                <div className={styles.worktrees}>
+                  {filteredWorktrees.map((worktree) => {
+                    const active = worktree.id === activeId;
+                    return (
+                      <button
+                        key={worktree.id}
+                        className={[styles.worktreeRow, active ? styles.active : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => void selectWorktree(worktree.id)}
+                        title={`${shortPath(worktree.path)}\n${worktree.headSubject}`}
+                      >
+                        <BranchIcon
+                          size={12}
+                          className={styles.branchIcon}
+                          style={{ color: active ? 'var(--lime)' : undefined }}
+                        />
+                        <span className={styles.branchName}>
+                          {worktree.branch ?? 'detached HEAD'}
+                        </span>
+                        {worktree.dirty > 0 ? (
+                          <span className={styles.dirty}>{worktree.dirty}</span>
+                        ) : null}
+                        {worktree.isMain ? <span className={styles.mainTag}>主</span> : null}
+                      </button>
+                    );
+                  })}
+
+                  {isCurrent && loadingWorktrees ? (
+                    <div className={styles.loading}>读取工作树…</div>
+                  ) : null}
+
+                  {isCurrent && !loadingWorktrees && filteredWorktrees.length === 0 ? (
+                    <div className={styles.loading}>
+                      {query ? '没有匹配的工作树' : '没有工作树'}
+                    </div>
+                  ) : null}
+
+                  {isCurrent ? (
+                    <button
+                      className={styles.newWorktree}
+                      onClick={openNewWorktree}
+                    >
+                      <PlusIcon size={11} />
+                      新建工作树
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {query && visible.length === 0 ? (
+          <div className={styles.loading}>没有匹配的项目</div>
+        ) : null}
+      </div>
+
+      <div className={styles.footer}>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<PlusIcon size={11} />}
+          onClick={() => void addProject()}
+          className={styles.addButton}
+        >
+          添加项目
+        </Button>
+      </div>
+    </aside>
+  );
+}
