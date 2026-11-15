@@ -3,6 +3,7 @@
 </div>
 
 <p align="center">
+  <a href="https://github.com/FlashingChen/ChenADE/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/FlashingChen/ChenADE/ci.yml?branch=main&style=flat-square&labelColor=0B0C0E" /></a>
   <img alt="version" src="https://img.shields.io/badge/version-0.1.0-B5E655?style=flat-square&labelColor=0B0C0E" />
   <img alt="status" src="https://img.shields.io/badge/status-developer%20preview-F7C548?style=flat-square&labelColor=0B0C0E" />
   <img alt="tauri" src="https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&labelColor=0B0C0E" />
@@ -13,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="#下载">下载</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#截图">截图</a> ·
   <a href="#核心特性">核心特性</a> ·
@@ -28,6 +30,8 @@
 同一个仓库里并行开 `feat/a`、`fix/b` 和 `main`：每个工作树都有自己的标签页、终端、文件树和 Git 记录。切换工作树时，一整套上下文跟着切换，而不是把同一堆标签页反复关掉再重开。
 
 你常用的 agent CLI（`claude`、`codex`、`opencode`……）依然运行在真实 PTY 里。ChenADE 不解析它的输出、不弹审批卡、不做聊天壳——终端就是终端。
+
+关掉应用，终端也还在：每个标签都是一个内置 tmux 会话，重开就接回原来的屏幕和进程。
 
 <br/>
 
@@ -51,11 +55,14 @@
 | --- | --- |
 | **工作树即上下文** | 每个工作树独立保存标签页、终端会话、文件树展开状态与 Git 面板；切换工作树 = 切换整套工作区，切回来滚动位置还在 |
 | **真实 PTY 终端** | Rust 侧 `portable-pty` + 前端 `xterm.js`，多标签、自动 resize、复制粘贴、进程退出提示；agent CLI 的 TUI 原样保留 |
+| **终端跨重启存活** | 随包内置 tmux（静态链接、私有 socket `-L chenade`）：退出应用只 detach，重开按标签重连同一会话；关标签才结束会话 |
+| **为中文调的终端** | 内置 2:1 等宽字体 Sarasa Mono SC，字符格与字形宽度严格对齐；按内容盒自算行列，中文换行不再越界 |
 | **30 秒新建工作树** | 选仓库、分支名、起点分支、目录；可选复制 `.env.local`、安装依赖、创建后自动开终端；底部实时预览将要执行的 `git worktree add …` |
 | **Git 在视线内** | 工作树状态、逐文件 diff、提交列表、提交详情、commit / push、打开远端 compare URL；写操作一律由你点击触发 |
 | **文件树与代码查看** | 懒加载目录、Git 状态标记、语法高亮、UTF-8 内联编辑与保存、大文件与二进制兜底、一键交给系统编辑器或 Finder |
 | **键盘优先** | `⌘K` 全局搜索工作树 / 文件 / 命令，`⌘⇧N` 新建工作树，`⌘1…9` 切标签，`⌘⇧G` 进 Git 复核 |
 | **本地优先** | 项目、设置、UI 状态、最近活动全部落在本地 SQLite；无账号、无遥测、无后台服务 |
+| **多项目同屏** | 左栏项目可同时展开、各自缓存工作树；点当前项目行即可折叠，也有「全部展开 / 折叠全部」 |
 | **三端可构建** | macOS 为一等公民，Windows / Linux 保持同一套代码可构建，路径与 shell 探测按平台处理 |
 
 <br/>
@@ -79,6 +86,16 @@
 
 <br/>
 
+## 下载
+
+macOS（Apple Silicon）安装包见 [Releases](https://github.com/FlashingChen/ChenADE/releases)：
+下载 `ChenADE_x.y.z_aarch64.dmg`，拖动到「应用程序」即可。
+
+> 个人项目，未做 Apple 公证：首次打开如被 Gatekeeper 拦下，右键 → 打开，或到
+> 「系统设置 → 隐私与安全性」里放行。Intel / Windows / Linux 目前请从源码构建。
+
+<br/>
+
 ## 快速开始
 
 **环境要求**
@@ -87,11 +104,12 @@
 - [Node.js](https://nodejs.org/) 20+ 与 [pnpm](https://pnpm.io/) 9+
 - [Rust](https://www.rust-lang.org/tools/install) 1.77.2+
 - 系统安装 `git ≥ 2.40`（应用启动时会检测并提示）
+- tmux 与终端字体已随包内置，无需自己安装
 
 ```bash
 # 1. 拉取代码
-git clone https://github.com/your-name/chenade.git
-cd chenade
+git clone https://github.com/FlashingChen/ChenADE.git
+cd ChenADE
 
 # 2. 安装前端依赖
 pnpm install
@@ -173,9 +191,9 @@ flowchart TB
 | 前端 | React 19 + TypeScript strict + Vite |
 | 状态 | Zustand（按 feature 分 store） |
 | 路由 | React Router（桌面内 hash 路由） |
-| 终端 | xterm.js + fit addon；Rust `portable-pty` |
+| 终端 | xterm.js（unicode11 / search addon）；Rust `portable-pty`；macOS 内置 tmux 3.5a |
 | Git | 系统 `git` CLI（≥ 2.40） |
-| 持久化 | SQLite（`rusqlite`，bundled） |
+| 持久化 | SQLite（`rusqlite`，bundled）；终端会话由内置 tmux 托管 |
 | 样式 | CSS Modules + CSS variables，无 UI 组件库 |
 | 测试 | Vitest（前端）、`cargo test`（Rust） |
 
@@ -184,7 +202,7 @@ flowchart TB
 ```text
 .
 ├── assets/               品牌资产与 README 截图
-├── public/               favicon
+├── public/               favicon · 内置终端字体（Sarasa Mono SC）
 ├── src/                  React 前端
 │   ├── app/              应用壳、路由、工作区 / 项目总览 / Git 复核
 │   ├── components/       通用组件（Button / Pill / Kbd / CommandPalette…）
@@ -196,7 +214,9 @@ flowchart TB
     ├── src/services/     git · pty · fs · db · search · platform
     ├── src/models/       serde 类型
     ├── icons/            应用图标（由 assets/brand/mark.svg 生成）
-    └── tauri.conf.json
+    ├── resources/bin/    内置 tmux（macOS universal）与许可证
+    ├── tauri.conf.json
+    └── tauri.macos.conf.json   macOS 专属打包资源
 ```
 
 <br/>
@@ -234,7 +254,7 @@ ChenADE 是本机工具，不是云服务：
 
 - **不联网**：没有账号、没有同步、没有遥测、没有崩溃上报。
 - **唯一的网络动作**：你主动点击“创建合并请求”时，用系统浏览器打开远端 compare URL。
-- **数据都在本地**：项目列表、设置、UI 状态、最近活动存在本地 SQLite；终端进程随应用退出结束。
+- **数据都在本地**：项目列表、设置、UI 状态、最近活动存在本地 SQLite；终端会话跑在本机 tmux server 上（私有 socket），关掉应用也不会被上传或转发。
 - **不碰密钥**：不存储 OAuth token，不读取 `.env` 内容（新建工作树时只做文件复制）。
 
 <br/>
@@ -243,7 +263,7 @@ ChenADE 是本机工具，不是云服务：
 
 `v0.1.0` · 开发者预览。macOS 全流程可用；Windows / Linux 保持可构建，但尚未做完整验收，请以实际平台表现反馈问题。
 
-目前已经可用：项目管理、工作树列表 / 新建 / 删除 / prune、真实终端、文件树与代码编辑、Git 状态与 diff、commit / push、Git 复核、项目总览、最近活动、设置、全局搜索。
+目前已经可用：项目管理（多项目同时展开）、工作树列表 / 新建 / 删除 / prune、真实终端与跨重启会话、文件树与代码编辑、Git 状态与 diff、commit / push、Git 复核、项目总览、最近活动、设置、全局搜索。
 
 <br/>
 
@@ -262,10 +282,15 @@ ChenADE 是本机工具，不是云服务：
 
 [MIT](LICENSE) © ChenADE
 
+随包分发的 tmux（ISC）、静态链接的 libevent（BSD-3-Clause）与 Sarasa Mono SC（SIL OFL 1.1）
+许可见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+
 <br/>
 
 ## 致谢
 
 站在这些项目肩上：[Tauri](https://tauri.app/)、[React](https://react.dev/)、[Vite](https://vite.dev/)、[xterm.js](https://xtermjs.org/)、[portable-pty](https://github.com/wez/wezterm/tree/main/pty)、[rusqlite](https://github.com/rusqlite/rusqlite)、[Zustand](https://zustand.docs.pmnd.rs/)。
+
+[tmux](https://github.com/tmux/tmux)、[libevent](https://libevent.org/)、[Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic)。
 
 也谢谢每一个在终端里同时开三个 agent 的人——这个项目就是为你们写的。

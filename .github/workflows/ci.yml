@@ -14,8 +14,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: ${{ matrix.name }}
+  checks:
+    name: Checks · typecheck tests frontend build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            curl wget file patchelf
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend build (tsc + vite)
+        run: pnpm build
+
+      - name: Frontend tests
+        run: pnpm test
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  bundle:
+    name: Bundle · ${{ matrix.name }}
+    needs: checks
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -51,11 +104,7 @@ jobs:
             libxdo-dev \
             libssl-dev \
             build-essential \
-            curl \
-            wget \
-            file \
-            patchelf \
-            zsh
+            curl wget file patchelf
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -79,13 +128,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Frontend tests
-        run: pnpm test
-
-      - name: Rust tests
+      # 内置 tmux 的持久化测试只在 macOS 会真正执行（其它平台自动跳过）。
+      - name: Rust tests (macOS, bundled tmux)
+        if: matrix.os == 'macos-latest'
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build desktop bundle
