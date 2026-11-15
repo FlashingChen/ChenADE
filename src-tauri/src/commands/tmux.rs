@@ -29,16 +29,6 @@ pub fn tmux_status(manager: State<'_, PtyManager>) -> AppResult<TmuxStatus> {
     })
 }
 
-/// 关标签时调用：结束该标签对应的 tmux 会话（应用退出只 detach，不会走到这里）。
-#[tauri::command]
-pub fn tmux_kill_session(manager: State<'_, PtyManager>, key: String) -> AppResult<()> {
-    let tmux = manager.tmux();
-    if !tmux.is_available() {
-        return Ok(());
-    }
-    tmux.kill_session(&Tmux::session_name(&key))
-}
-
 /// 启动时清理孤儿会话：只有 localStorage 里仍存在的标签才保留。
 #[tauri::command]
 pub fn tmux_prune_sessions(manager: State<'_, PtyManager>, keep: Vec<String>) -> AppResult<usize> {

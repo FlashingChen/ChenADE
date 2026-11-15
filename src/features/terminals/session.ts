@@ -28,9 +28,6 @@ export class TerminalSession {
   exitCode: number | null = null;
   cols = 80;
   rows = 24;
-  /** 后端是 tmux 时会话可跨应用重启存活；关标签要显式 kill-session。 */
-  persistent = false;
-  backend: 'tmux' | 'shell' = 'shell';
 
   private chunks: Uint8Array[] = [];
   private channel: Channel<PtyEvent> | null = null;
@@ -109,8 +106,6 @@ export class TerminalSession {
 
       this.sessionId = result.sessionId;
       this.shell = result.shell;
-      this.persistent = result.persistent;
-      this.backend = result.backend;
       this.state = 'running';
       this.emitState();
 
@@ -193,11 +188,8 @@ export class TerminalSession {
   }
 
   dispose(): void {
+    // pty_kill 在 Rust 侧负责顺序：关标签 = 结束 tmux 会话；应用退出只走 kill_all（detach）。
     this.kill();
-    if (this.persistent) {
-      // 关标签 = 结束这个 tmux 会话；应用退出走的是 kill_all（只 detach）。
-      void call('tmux_kill_session', { key: this.tabId }).catch(() => undefined);
-    }
     this.channel = null;
     this.dataListeners.clear();
     this.stateListeners.clear();

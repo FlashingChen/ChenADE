@@ -16,7 +16,9 @@ use crate::models::pty::{PtyEvent, PtySpawnInput, PtySpawnResult};
 use crate::services::tmux::Tmux;
 
 struct Session {
-    master: Box<dyn MasterPty + Send>,
+    /// Option 只为了在“客户端还没退出”的极端情况下能 take + forget，
+    /// 避免关闭 master 把仍在运行的 tmux server 一起带走。
+    master: Option<Box<dyn MasterPty + Send>>,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     /// tmux 会话名：有值时退出前要先 detach，不能直接拆 pty。
@@ -201,7 +203,7 @@ impl PtyManager {
         });
 
         let session = Session {
-            master: pair.master,
+            master: Some(pair.master),
             writer,
             killer,
             tmux_name: if backend == "tmux" {
@@ -256,6 +258,8 @@ impl PtyManager {
             .ok_or_else(|| AppError::new("PTY_NOT_FOUND", "终端已关闭"))?;
         session
             .master
+            .as_ref()
+            .ok_or_else(|| AppError::new("PTY_NOT_FOUND", "终端已关闭"))?
             .resize(PtySize {
                 rows: rows.max(2),
                 cols: cols.max(2),
@@ -265,6 +269,7 @@ impl PtyManager {
             .map_err(|error| AppError::new("IO_ERROR", "调整终端尺寸失败").detail(error.to_string()))
     }
 
+    /// 关闭终端（关标签）：tmux 会话一并销毁。
     pub fn kill(&self, session_id: &str) -> AppResult<()> {
         let session = {
             let mut sessions = self
@@ -274,7 +279,22 @@ impl PtyManager {
             sessions.remove(session_id)
         };
         if let Some(mut session) = session {
-            self.detach_and_kill(&mut session);
+            self.shutdown(&mut session, true);
+        }
+        Ok(())
+    }
+
+    /// 只断开客户端，保留 tmux 会话（应用退出用，重开还能接回来）。
+    pub fn detach(&self, session_id: &str) -> AppResult<()> {
+        let session = {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| AppError::new("PTY_NOT_FOUND", "终端状态不可用"))?;
+            sessions.remove(session_id)
+        };
+        if let Some(mut session) = session {
+            self.shutdown(&mut session, false);
         }
         Ok(())
     }
@@ -285,36 +305,46 @@ impl PtyManager {
             Err(_) => Vec::new(),
         };
 
-        // 退出应用时先把所有 tmux 客户端 detach 掉，再共用一个截止时间等它们退出：
-        // 逐个等会让 5 个终端最多卡住 3 秒。
-        let mut pending = 0usize;
+        // 先把所有 tmux 客户端 detach 掉，再用一个共享截止时间等它们退出：
+        // 逐个等会让 5 个终端把退出拖到十几秒。
         for session in &drained {
             if let Some(name) = session.tmux_name.clone() {
                 let _ = self.tmux.detach_client(&name);
-                pending += 1;
             }
         }
-        if pending > 0 {
-            let deadline = Instant::now() + Duration::from_millis(1200);
+
+        let tmux_sessions: Vec<usize> = drained
+            .iter()
+            .enumerate()
+            .filter(|(_, session)| session.tmux_name.is_some())
+            .map(|(index, _)| index)
+            .collect();
+
+        if !tmux_sessions.is_empty() {
+            let deadline = Instant::now() + Duration::from_millis(1500);
             while Instant::now() < deadline
-                && drained
+                && tmux_sessions
                     .iter()
-                    .any(|session| session.tmux_name.is_some() && !session.exited.load(Ordering::SeqCst))
+                    .any(|index| !drained[*index].exited.load(Ordering::SeqCst))
             {
                 thread::sleep(Duration::from_millis(10));
             }
 
-            for session in &mut drained {
-                let _ = session.killer.kill();
+            for index in &tmux_sessions {
+                let _ = drained[*index].killer.kill();
             }
-            // 给客户端退出 + server 摘客户端留时间，再让 pty 关闭。
-            let grace = Instant::now() + Duration::from_millis(400);
+
+            let grace = Instant::now() + Duration::from_millis(300);
             while Instant::now() < grace
-                && drained
+                && tmux_sessions
                     .iter()
-                    .any(|session| session.tmux_name.is_some() && !session.exited.load(Ordering::SeqCst))
+                    .any(|index| !drained[*index].exited.load(Ordering::SeqCst))
             {
                 thread::sleep(Duration::from_millis(10));
+            }
+
+            for index in &tmux_sessions {
+                keep_master_if_attached(&mut drained[*index]);
             }
         }
 
@@ -323,29 +353,47 @@ impl PtyManager {
         }
     }
 
-    /// tmux 会话必须先 `detach-client` 并等客户端退出，再拆 pty。
+    /// `destroy = true` 结束会话（关标签），`false` 只 detach（退出应用）。
     ///
-    /// 实测：直接 SIGHUP 客户端后立刻关闭 pty master，会在 50ms 内把 tmux server
-    /// 一起带走，会话（进程 + 屏幕）全丢——这是“应用退出后终端没了”的真实原因。
-    fn detach_and_kill(&self, session: &mut Session) {
-        if let Some(name) = session.tmux_name.clone() {
-            let _ = self.tmux.detach_client(&name);
-            let deadline = Instant::now() + Duration::from_millis(1200);
-            while !session.exited.load(Ordering::SeqCst) && Instant::now() < deadline {
-                thread::sleep(Duration::from_millis(10));
-            }
-
-            // detach 没成功（例如客户端的 listing 查不到）时只能 SIGHUP，
-            // 但必须留时间让客户端退出并让 server 把客户端摘掉——否则紧接着关闭
-            // pty master 会把 tmux server 一起带走（CI 上实测）。
+    /// 关键顺序：先让 tmux 把客户端摘掉，再关闭 pty master。反过来的话，
+    /// master 关闭会给 pty 会话发 SIGHUP，仍在连着 server 的客户端被带走，
+    /// server 发现没有客户端、会话也跟着消失——这正是 CI 上偶发丢会话的原因。
+    fn shutdown(&self, session: &mut Session, destroy: bool) {
+        let Some(name) = session.tmux_name.clone() else {
             let _ = session.killer.kill();
-            let grace = Instant::now() + Duration::from_millis(400);
+            return;
+        };
+
+        if destroy {
+            let _ = self.tmux.kill_session(&name);
+        } else {
+            let _ = self.tmux.detach_client(&name);
+        }
+
+        let deadline = Instant::now() + Duration::from_millis(1500);
+        while !session.exited.load(Ordering::SeqCst) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        if !session.exited.load(Ordering::SeqCst) {
+            let _ = session.killer.kill();
+            let grace = Instant::now() + Duration::from_millis(300);
             while !session.exited.load(Ordering::SeqCst) && Instant::now() < grace {
                 thread::sleep(Duration::from_millis(10));
             }
-            return;
         }
-        let _ = session.killer.kill();
+
+        keep_master_if_attached(session);
+    }
+}
+
+/// 客户端还没确认退出时，宁可泄漏这一个 fd，也不要在它仍连着 tmux server 时关闭 master。
+/// 应用退出路径上进程马上结束，fd 会由内核回收。
+fn keep_master_if_attached(session: &mut Session) {
+    if !session.exited.load(Ordering::SeqCst) {
+        if let Some(master) = session.master.take() {
+            std::mem::forget(master);
+        }
     }
 }
 
@@ -656,7 +704,7 @@ mod persist_tests {
         assert!(output.contains("marker-one"), "output: {output}");
 
         // 关应用 = detach 客户端（不是 kill-session）。
-        manager.kill(&first.session_id).expect("detach client");
+        manager.detach(&first.session_id).expect("detach client");
 
         let second = manager
             .spawn_with_sender(input, sender.clone())
@@ -681,7 +729,7 @@ mod persist_tests {
         let output = collect_until(&rx, "marker-two", Duration::from_secs(8));
         assert!(output.contains("marker-two"), "output: {output}");
 
-        manager.kill(&second.session_id).expect("detach client");
+        manager.kill(&second.session_id).expect("kill session");
         manager
             .tmux()
             .kill_session(&session_name)

@@ -84,7 +84,6 @@ pub fn run() {
             commands::pty::pty_resize,
             commands::pty::pty_kill,
             commands::tmux::tmux_status,
-            commands::tmux::tmux_kill_session,
             commands::tmux::tmux_prune_sessions,
         ])
         .build(tauri::generate_context!())
