@@ -558,22 +558,29 @@ mod tests {
         let mut exit_code = None;
         let deadline = Instant::now() + Duration::from_secs(5);
 
+        // 退出事件可能比最后一批数据先到（两个线程各自发事件），所以拿到 exit 后
+        // 不能立刻 break，要把通道里的尾巴收完。
         while Instant::now() < deadline {
             match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(PtyEvent::Data { data }) => {
                     let bytes = engine.decode(data).expect("base64");
                     output.push_str(&String::from_utf8_lossy(&bytes));
+                    if output.contains("hello-pty") && exit_code.is_some() {
+                        break;
+                    }
                 }
                 Ok(PtyEvent::Exit { code, .. }) => {
                     exit_code = code;
-                    break;
+                    if output.contains("hello-pty") {
+                        break;
+                    }
                 }
                 Ok(PtyEvent::Error { message }) => panic!("pty error: {message}"),
                 Err(_) => continue,
             }
         }
 
-        assert!(output.contains("hello-pty"), "output: {output}");
+        assert!(output.contains("hello-pty"), "output: {output:?}");
         assert_eq!(exit_code, Some(3));
         manager.kill(&result.session_id).expect("kill");
     }
