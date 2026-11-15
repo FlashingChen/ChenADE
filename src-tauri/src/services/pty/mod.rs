@@ -91,11 +91,21 @@ impl PtyManager {
             Some(name) => !self.tmux.has_session(name),
             None => true,
         };
-        let (program, program_args, backend) = match session_name.as_deref() {
-            Some(name) => match self
+        if let (Some(name), true) = (session_name.as_deref(), created) {
+            // 会话先以 detached 方式建好：server 与后端 attach 的客户端 pty 没有父子关系，
+            // 客户端意外退出也不会把会话带走（CI 上就是这么丢的）。
+            if let Err(error) = self
                 .tmux
-                .attach_command(name, &input.cwd, &shell, &shell_args)
+                .create_session(name, &input.cwd, &shell, &shell_args)
             {
+                // 并发下可能刚好被别的客户端建出来，再确认一次。
+                if !self.tmux.has_session(name) {
+                    return Err(error);
+                }
+            }
+        }
+        let (program, program_args, backend) = match session_name.as_deref() {
+            Some(name) => match self.tmux.attach_command(name) {
                 Some((program, args)) => (
                     program.display().to_string(),
                     args,

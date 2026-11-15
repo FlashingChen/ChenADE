@@ -237,35 +237,53 @@ impl Tmux {
             .collect()
     }
 
-    /// 启动（或重连）一个会话的客户端命令。
-    pub fn attach_command(
+    /// 单独创建一个会话（不附带客户端）。
+    ///
+    /// 会话由这个短命进程建出来，tmux server 随即 daemonize，与之后 attach 进来的
+    /// 客户端 pty 没有父子/会话关系——客户端怎么死都不会带走会话。
+    pub fn create_session(
         &self,
         name: &str,
         cwd: &str,
         shell: &str,
         args: &[String],
-    ) -> Option<(PathBuf, Vec<String>)> {
+    ) -> AppResult<()> {
+        let Some(mut command) = self.base_command() else {
+            return Ok(());
+        };
+        command
+            .arg("new-session")
+            .arg("-d")
+            .arg("-s")
+            .arg(name)
+            .arg("-c")
+            .arg(cwd)
+            .arg("--")
+            .arg(shell)
+            .args(args);
+        let output = command.output().map_err(|error| {
+            AppError::new("TMUX_ERROR", "无法创建终端会话").detail(error.to_string())
+        })?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(AppError::new("TMUX_ERROR", "无法创建终端会话").detail(stderr));
+        }
+        Ok(())
+    }
+
+    /// attach 到一个已经存在的会话。
+    pub fn attach_command(&self, name: &str) -> Option<(PathBuf, Vec<String>)> {
         let binary = self.binary.clone()?;
-        let mut argv: Vec<String> = vec![
-            "-L".to_string(),
-            SOCKET.to_string(),
-            "-u".to_string(),
-        ];
+        let mut argv: Vec<String> = vec!["-L".to_string(), SOCKET.to_string(), "-u".to_string()];
         if let Some(config) = self.config.as_ref() {
             argv.push("-f".to_string());
             argv.push(config.display().to_string());
         }
         argv.extend([
-            "new-session".to_string(),
-            "-A".to_string(),
-            "-s".to_string(),
+            "attach-session".to_string(),
+            "-t".to_string(),
             name.to_string(),
-            "-c".to_string(),
-            cwd.to_string(),
         ]);
-        argv.push("--".to_string());
-        argv.push(shell.to_string());
-        argv.extend(args.iter().cloned());
         Some((binary, argv))
     }
 }
@@ -374,19 +392,15 @@ mod tests {
     }
 
     #[test]
-    fn attach_command_uses_private_socket_and_attach_flag() {
+    fn attach_command_uses_private_socket_and_session_target() {
         let tmux = Tmux {
             binary: Some(PathBuf::from("/tmp/tmux")),
             config: Some(PathBuf::from("/tmp/tmux.conf")),
             version: None,
         };
-        let (program, argv) = tmux
-            .attach_command("chenade-t-1", "/tmp/work", "/bin/zsh", &["-l".to_string()])
-            .unwrap();
+        let (program, argv) = tmux.attach_command("chenade-t-1").unwrap();
         assert_eq!(program, PathBuf::from("/tmp/tmux"));
-        assert!(argv.contains(&"-A".to_string()));
-        assert!(argv.contains(&"chenade-t-1".to_string()));
-        assert!(argv.contains(&"/tmp/work".to_string()));
-        assert_eq!(argv.last().unwrap(), "-l");
+        assert!(argv.contains(&"attach-session".to_string()));
+        assert_eq!(argv.last().unwrap(), "chenade-t-1");
     }
 }
