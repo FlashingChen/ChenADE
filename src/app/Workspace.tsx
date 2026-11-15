@@ -205,7 +205,10 @@ export function Workspace() {
       <main className={styles.main}>
         {worktreesError && !loadingWorktrees ? (
           <div className={styles.errorState}>
-            <p>{worktreesError.message}</p>
+            <p>
+              {worktreesError.message}
+              {worktreesError.hint ? ` · ${worktreesError.hint}` : ''}
+            </p>
             <Button size="sm" onClick={() => void loadWorktrees(project.id)}>
               重试
             </Button>

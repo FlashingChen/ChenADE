@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { StatusBar } from '@/components/StatusBar';
 import { ToastViewport } from '@/components/ToastViewport';
 import { TopBar } from '@/components/TopBar';
@@ -8,6 +9,8 @@ import { SettingsModal } from '@/features/settings/SettingsModal';
 import { NewWorktreeModal } from '@/features/worktrees/NewWorktreeModal';
 import { useUiStore } from '@/features/ui/store';
 import { useTabsStore } from '@/features/tabs/store';
+import { ensureTerminalFont } from '@/features/terminals/fonts';
+import { pruneOrphanTerminalSessions } from '@/features/terminals/backend';
 import { useWorktreesStore } from '@/features/worktrees/store';
 import { useSettingsStore } from '@/features/settings/store';
 import { useAppStore } from './store';
@@ -24,6 +27,10 @@ export function AppShell() {
     bootStarted = true;
     void useAppStore.getState().bootstrap();
     void useSettingsStore.getState().load();
+    // 先把字体拉下来，终端打开时才不会按回退字体测量字宽。
+    void ensureTerminalFont();
+    // 清理已经没有标签对应的 tmux 会话（应用退出只 detach，会话会留在 tmux server 上）。
+    void pruneOrphanTerminalSessions();
   }, []);
 
   useEffect(() => {
@@ -129,6 +136,7 @@ export function AppShell() {
       </div>
       <StatusBar />
       <ToastViewport />
+      <ConfirmDialog />
       <CommandPalette />
       <NewWorktreeModal />
       <SettingsModal

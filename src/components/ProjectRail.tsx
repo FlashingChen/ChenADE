@@ -6,7 +6,7 @@ import { useWorktreesStore } from '@/features/worktrees/store';
 import { useUiStore } from '@/features/ui/store';
 import { useTabsStore } from '@/features/tabs/store';
 import { shortPath } from '@/lib/format';
-import type { Worktree } from '@/lib/types';
+import type { Project, Worktree } from '@/lib/types';
 import { call, toAppError } from '@/lib/ipc';
 import { confirmAction } from '@/lib/confirm';
 import { Button } from './Button';
@@ -21,6 +21,23 @@ import {
   SearchIcon,
 } from './icons';
 import styles from './ProjectRail.module.css';
+
+const EXPANDED_KEY = 'chenade.projects.expanded';
+
+function readExpanded(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(EXPANDED_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const next: Record<string, boolean> = {};
+    for (const [id, value] of Object.entries(parsed)) {
+      if (typeof value === 'boolean') next[id] = value;
+    }
+    return next;
+  } catch {
+    return {};
+  }
+}
 
 export function ProjectRail() {
   const projects = useAppStore((state) => state.projects);
@@ -37,11 +54,16 @@ export function ProjectRail() {
   const activeId = useWorktreesStore((state) => state.activeId);
   const selectWorktree = useWorktreesStore((state) => state.select);
   const loadingWorktrees = useWorktreesStore((state) => state.loading);
+  const worktreesByProject = useWorktreesStore((state) => state.byProject);
+  const loadingByProject = useWorktreesStore((state) => state.loadingByProject);
+  const errorsByProject = useWorktreesStore((state) => state.errorsByProject);
+  const ensureWorktrees = useWorktreesStore((state) => state.ensureLoaded);
 
   const openNewWorktree = useUiStore((state) => state.openNewWorktree);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // 默认全部展开：一个仓库多个工作树是常态，只展开当前项目等于每次都要多点一次。
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(readExpanded);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -51,9 +73,26 @@ export function ProjectRail() {
     projectId: string;
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [projectMenu, setProjectMenu] = useState<{
+    x: number;
+    y: number;
+    project: Project;
+  } | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
   const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
 
   const query = filter.trim().toLowerCase();
+
+  useEffect(() => {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(expanded));
+  }, [expanded]);
+
+  // 展开的项目都要有自己的工作树列表：以前只缓存当前项目，其它项目展开是空的。
+  useEffect(() => {
+    for (const project of projects) {
+      if (query || (expanded[project.id] ?? true)) void ensureWorktrees(project.id);
+    }
+  }, [projects, expanded, query, ensureWorktrees]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -82,13 +121,35 @@ export function ProjectRail() {
     };
   }, [contextMenu]);
 
-  const revealProject = async () => {
-    if (!currentProject) return;
+  useEffect(() => {
+    if (!projectMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!projectMenuRef.current?.contains(event.target as Node)) {
+        setProjectMenu(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setProjectMenu(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [projectMenu]);
+
+  const revealPath = async (path: string) => {
     try {
-      await call('project_reveal', { path: currentProject.path });
+      await call('project_reveal', { path });
     } catch (error) {
       notify(toAppError(error).message, 'error');
     }
+  };
+
+  const revealProject = async () => {
+    if (!currentProject) return;
+    await revealPath(currentProject.path);
   };
 
   const moveProject = async (direction: -1 | 1) => {
@@ -117,11 +178,15 @@ export function ProjectRail() {
     }
   };
 
-  const handleRemoveProject = async () => {
-    if (!currentProject) return;
-    if (!(await confirmAction(`移除项目「${currentProject.name}」？不会删除磁盘文件。`))) return;
-    await removeProject(currentProject.id);
+  const removeProjectWithConfirm = async (project: Project) => {
+    const ok = await confirmAction(`移除项目「${project.name}」？不会删除磁盘文件。`, {
+      title: '移除项目',
+      confirmLabel: '移除',
+    });
+    if (!ok) return;
+    await removeProject(project.id);
     setMenuOpen(false);
+    setProjectMenu(null);
   };
 
   const visible = useMemo(() => {
@@ -192,16 +257,33 @@ export function ProjectRail() {
   };
 
   const toggleProject = (id: string) => {
-    const isExpanded = expanded[id] ?? id === currentProjectId;
+    const isExpanded = expanded[id] ?? true;
     setExpanded((value) => ({ ...value, [id]: !isExpanded }));
-    if (!isExpanded && id !== currentProjectId) {
-      void selectProject(id);
-    }
+    if (!isExpanded) void ensureWorktrees(id);
   };
 
+  const openWorktree = async (projectId: string, worktreeId: string) => {
+    if (projectId !== useAppStore.getState().currentProjectId) {
+      await useAppStore.getState().selectProject(projectId);
+    }
+    await useWorktreesStore.getState().select(worktreeId);
+  };
+
+  // 点项目行：当前项目 = 折叠/展开；其它项目 = 切过去并展开。
+  // 折叠不再只能点那个小箭头——这是“某个项目收不回去”的直接修法。
   const activateProject = (id: string) => {
+    if (id === currentProjectId) {
+      toggleProject(id);
+      return;
+    }
     setExpanded((value) => ({ ...value, [id]: true }));
     void selectProject(id);
+  };
+
+  const setAllExpanded = (value: boolean) => {
+    const next: Record<string, boolean> = {};
+    for (const project of projects) next[project.id] = value;
+    setExpanded(next);
   };
 
   return (
@@ -229,10 +311,21 @@ export function ProjectRail() {
               <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void moveProject(1); }} disabled={projects[projects.length - 1]?.id === currentProject.id}>
                 下移项目
               </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); setAllExpanded(true); }}>
+                展开全部项目
+              </button>
+              <button className={styles.menuItem} onClick={() => { setMenuOpen(false); setAllExpanded(false); }}>
+                折叠全部项目
+              </button>
               <button className={styles.menuItem} onClick={() => { setMenuOpen(false); void pruneWorktrees(); }}>
                 清理失效工作树
               </button>
-              <button className={styles.menuItemDanger} onClick={() => void handleRemoveProject()}>
+              <button
+                className={styles.menuItemDanger}
+                onClick={() => {
+                  if (currentProject) void removeProjectWithConfirm(currentProject);
+                }}
+              >
                 移除项目
               </button>
             </div>
@@ -267,8 +360,13 @@ export function ProjectRail() {
 
         {visible.map((project) => {
           const isCurrent = project.id === currentProjectId;
-          const isExpanded = query ? true : expanded[project.id] ?? isCurrent;
-          const projectWorktrees = isCurrent && worktreeProjectId === project.id ? worktrees : [];
+          const isExpanded = query ? true : (expanded[project.id] ?? true);
+          const projectWorktrees =
+            worktreesByProject[project.id] ??
+            (isCurrent && worktreeProjectId === project.id ? worktrees : []);
+          const isLoadingWorktrees =
+            (isCurrent && worktreeProjectId === project.id && loadingWorktrees) ||
+            !!loadingByProject[project.id];
           const filteredWorktrees = query
             ? projectWorktrees.filter((worktree) =>
                 (worktree.branch ?? '').toLowerCase().includes(query),
@@ -277,13 +375,31 @@ export function ProjectRail() {
 
           return (
             <div key={project.id}>
-              <button
+              <div
                 className={styles.projectRow}
+                role="button"
+                tabIndex={0}
                 onClick={() => activateProject(project.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setProjectMenu({
+                    x: event.clientX,
+                    y: event.clientY,
+                    project,
+                  });
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  activateProject(project.id);
+                }}
                 title={project.path}
               >
-                <span
+                <button
+                  type="button"
                   className={styles.chevron}
+                  aria-label={isExpanded ? '折叠项目' : '展开项目'}
+                  title={isExpanded ? '折叠项目' : '展开项目'}
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleProject(project.id);
@@ -296,11 +412,11 @@ export function ProjectRail() {
                       transition: 'transform 180ms ease',
                     }}
                   />
-                </span>
+                </button>
                 <FolderIcon size={13} />
                 <span className={styles.projectName}>{project.name}</span>
                 <span className={styles.projectCount}>{project.worktreeCount}</span>
-              </button>
+              </div>
 
               {isExpanded ? (
                 <div className={styles.worktrees}>
@@ -312,7 +428,7 @@ export function ProjectRail() {
                         className={[styles.worktreeRow, active ? styles.active : '']
                           .filter(Boolean)
                           .join(' ')}
-                        onClick={() => void selectWorktree(worktree.id)}
+                        onClick={() => void openWorktree(project.id, worktree.id)}
                         onContextMenu={(event) => {
                           event.preventDefault();
                           setContextMenu({
@@ -340,13 +456,15 @@ export function ProjectRail() {
                     );
                   })}
 
-                  {isCurrent && loadingWorktrees ? (
+                  {isLoadingWorktrees ? (
                     <div className={styles.loading}>读取工作树…</div>
                   ) : null}
 
-                  {isCurrent && !loadingWorktrees && filteredWorktrees.length === 0 ? (
+                  {!isLoadingWorktrees && filteredWorktrees.length === 0 ? (
                     <div className={styles.loading}>
-                      {query ? '没有匹配的工作树' : '没有工作树'}
+                      {query
+                        ? '没有匹配的工作树'
+                        : (errorsByProject[project.id]?.message ?? '没有工作树')}
                     </div>
                   ) : null}
 
@@ -381,6 +499,56 @@ export function ProjectRail() {
           添加项目
         </Button>
       </div>
+
+      {projectMenu
+        ? createPortal(
+            <div
+              ref={projectMenuRef}
+              className={styles.contextMenu}
+              style={{
+                left: Math.min(projectMenu.x, window.innerWidth - 210),
+                top: Math.min(projectMenu.y, window.innerHeight - 190),
+              }}
+              role="menu"
+            >
+              <div className={styles.contextHeader}>
+                <strong>{projectMenu.project.name}</strong>
+                <span>{shortPath(projectMenu.project.path)}</span>
+              </div>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  const project = projectMenu.project;
+                  setProjectMenu(null);
+                  navigate(`/projects/${project.id}`);
+                }}
+              >
+                项目总览
+              </button>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  const project = projectMenu.project;
+                  setProjectMenu(null);
+                  void revealPath(project.path);
+                }}
+              >
+                在 Finder 中打开
+              </button>
+              <button
+                className={styles.contextDanger}
+                onClick={() => {
+                  const project = projectMenu.project;
+                  setProjectMenu(null);
+                  void removeProjectWithConfirm(project);
+                }}
+              >
+                移除项目
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {contextMenu
         ? createPortal(
