@@ -507,6 +507,13 @@ mod clean_shell_tests {
 
     #[test]
     fn clean_zsh_uses_simple_prompt_and_skips_user_rc() {
+        // 这个用例验的是 zsh 专用的干净启动参数；机器上没装 zsh 就该跳过，
+        // 而不是让 contributor 为了跑测试去装一个 shell。
+        if !std::path::Path::new("/bin/zsh").exists() {
+            eprintln!("skip: /bin/zsh not installed");
+            return;
+        }
+
         let dir = tempfile::tempdir().expect("tempdir");
         let (tx, rx) = mpsc::channel::<PtyEvent>();
         let sender: Arc<dyn Fn(PtyEvent) + Send + Sync> = Arc::new(move |event| {
