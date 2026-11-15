@@ -6,6 +6,10 @@ that ChenADE ships so terminal sessions survive app restarts.
 - Version: tmux 3.5a, built from the upstream release tarball
 - Static libevent 2.1.12-stable (no Homebrew dylibs); only system libs are linked:
   `libncurses.5.4`, `libSystem`, `libresolv`
+- Minimum OS: **11.0 (arm64) / 10.15 (x86_64)**. Built with
+  `MACOSX_DEPLOYMENT_TARGET`, and `ac_cv_func_pipe2=no` for both libevent and tmux —
+  otherwise the binary links against `pipe2` (macOS 13+) and dyld refuses to load it on
+  older systems, which is exactly how the first build failed on CI.
 - Configure flags: `--disable-utf8proc` (avoids an extra shared dependency; tmux keeps its
   built-in width tables). libevent: `--enable-static --disable-shared --disable-openssl
   --disable-samples --disable-libevent-regress`
@@ -22,7 +26,7 @@ Rebuild recipe (macOS, Xcode command line tools):
 curl -L -O https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz
 ./configure --prefix=/tmp/tmux-build/prefix-arm64 --enable-static --disable-shared \
   --disable-openssl --disable-samples --disable-libevent-regress \
-  CFLAGS="-arch arm64 -O2" LDFLAGS="-arch arm64"
+  CFLAGS="-arch arm64 -O2 -mmacosx-version-min=11.0" LDFLAGS="-arch arm64 -mmacosx-version-min=11.0"
 make -j && make install
 
 # 2) tmux, per arch
