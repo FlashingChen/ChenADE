@@ -5,6 +5,8 @@ import { Button } from '@/components/Button';
 import { SearchIcon, XIcon } from '@/components/icons';
 import { useSettingsStore } from '@/features/settings/store';
 import type { Tab } from '@/features/tabs/store';
+import { ensureTerminalBackend } from './backend';
+import { ensureTerminalFont } from './fonts';
 import {
   attachTerminal,
   detachTerminal,
@@ -32,43 +34,63 @@ export function TerminalPane({ tab }: { tab: Extract<Tab, { kind: 'terminal' }> 
     const container = containerRef.current;
     if (!container) return;
 
-    const entry = attachTerminal(tab, container);
-    sessionRef.current = entry.session;
-    termRef.current = entry.term;
-    searchRef.current = entry.search;
-    setState(entry.session.state);
-    setError(entry.session.error);
-    // 对齐当前设置的字体（实例可能在设置变更之前就已经创建）
-    setTerminalFontSize(tab.id, useSettingsStore.getState().settings.terminalFontSize);
+    let cancelled = false;
+    let attached = false;
+    let frame = 0;
+    let resizeObserver: ResizeObserver | null = null;
+    let offState: (() => void) | null = null;
 
-    const offState = entry.session.onState(() => {
+    // 字体必须先就绪：xterm 在 open() 时实测字符格，字体没加载完会把回退字体的
+    // 宽度烧进缓存，表现为字距偏大、换行位置不对（docs/10-fixes-2026-11-15.md 第 1 节）。
+    // 同时确认后端是否可用 tmux：只有可持久化时才自动重连恢复的标签。
+    void Promise.all([ensureTerminalFont(), ensureTerminalBackend()]).then(([, backend]) => {
+      if (cancelled) return;
+
+      const entry = attachTerminal(tab, container);
+      attached = true;
+      sessionRef.current = entry.session;
+      termRef.current = entry.term;
+      searchRef.current = entry.search;
       setState(entry.session.state);
       setError(entry.session.error);
-    });
+      // 对齐当前设置的字体（实例可能在设置变更之前就已经创建）
+      setTerminalFontSize(tab.id, useSettingsStore.getState().settings.terminalFontSize);
 
-    fitTerminal(tab.id);
-    const frame = requestAnimationFrame(() => {
-      // 等到布局完成再 fit：容器此刻才有确定尺寸。
+      offState = entry.session.onState(() => {
+        setState(entry.session.state);
+        setError(entry.session.error);
+      });
+
       fitTerminal(tab.id);
-      entry.term.focus();
-      if (tab.autoStart && entry.session.state === 'idle') {
-        // 用已经布局好的行列起进程：默认的 80×24 会让全屏 TUI 先按 80 列 flush
-        // 一帧，而 flush 进 scrollback 的内容之后不会再重画（docs/09 第 3.3 节）。
-        entry.session.prepareSize(entry.term.cols, entry.term.rows);
-        void entry.session.start().then(() => fitTerminal(tab.id));
-      }
-    });
+      frame = requestAnimationFrame(() => {
+        // 等到布局完成再 fit：容器此刻才有确定尺寸。
+        fitTerminal(tab.id);
+        entry.term.focus();
+        const shouldStart =
+          entry.session.state === 'idle' &&
+          (tab.autoStart || (!!tab.restored && !!backend?.available));
+        if (shouldStart) {
+          // 用已经布局好的行列起进程：默认的 80×24 会让全屏 TUI 先按 80 列 flush
+          // 一帧，而 flush 进 scrollback 的内容之后不会再重画（docs/09 第 3.3 节）。
+          entry.session.prepareSize(entry.term.cols, entry.term.rows);
+          void entry.session.start().then(() => fitTerminal(tab.id));
+        }
+      });
 
-    const resizeObserver = new ResizeObserver(() => fitTerminal(tab.id));
-    resizeObserver.observe(container);
+      resizeObserver = new ResizeObserver(() => fitTerminal(tab.id));
+      resizeObserver.observe(container);
+    });
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-      offState();
-      // 只把 xterm 的 DOM 节点摘下来：实例、缓冲区、PTY 全部保留，
-      // 切回来时原地复用，不再走「截断重放」。
-      detachTerminal(tab.id);
+      resizeObserver?.disconnect();
+      offState?.();
+      if (attached) {
+        // 只把 xterm 的 DOM 节点摘下来：实例、缓冲区、PTY 全部保留，
+        // 切回来时原地复用，不再走“截断重放”。
+        detachTerminal(tab.id);
+      }
       sessionRef.current = null;
       termRef.current = null;
       searchRef.current = null;
@@ -108,7 +130,9 @@ export function TerminalPane({ tab }: { tab: Extract<Tab, { kind: 'terminal' }> 
 
   return (
     <div className={styles.wrap} onKeyDownCapture={handleKeyDownCapture}>
-      <div className={styles.terminal} ref={containerRef} />
+      <div className={styles.terminal}>
+        <div className={styles.host} ref={containerRef} />
+      </div>
 
       {searchOpen ? (
         <div className={styles.searchBar}>

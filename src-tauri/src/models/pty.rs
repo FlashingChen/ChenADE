@@ -12,6 +12,9 @@ pub struct PtySpawnInput {
     pub rows: u16,
     pub env: Option<HashMap<String, String>>,
     pub load_profile: Option<bool>,
+    /// 标签 id：有值且 tmux 可用时，终端跑在可重连的 tmux 会话里。
+    #[serde(default)]
+    pub persist: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -20,6 +23,12 @@ pub struct PtySpawnResult {
     pub session_id: String,
     pub shell: String,
     pub pid: u32,
+    /// "tmux" 或 "shell"：前端据此决定重开应用后是否自动重连。
+    pub backend: String,
+    pub persistent: bool,
+    /// 本次是新建会话（true）还是重连已有会话（false）。
+    pub created: bool,
+    pub session_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

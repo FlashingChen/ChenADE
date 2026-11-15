@@ -7,6 +7,7 @@ pub use error::AppError;
 
 use services::db::Db;
 use services::pty::PtyManager;
+use services::tmux::Tmux;
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
@@ -25,7 +26,23 @@ pub fn run() {
         .setup(|app| {
             let db = Db::init(app.handle())?;
             app.manage(db);
-            app.manage(PtyManager::new());
+
+            // 随包分发的 tmux 二进制 + 生成的 tmux.conf；找不到就回退普通 PTY。
+            let resource_dir = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| std::env::temp_dir().join("chenade"));
+            let tmux = Tmux::detect(&resource_dir, &config_dir);
+            tracing::info!(
+                available = tmux.is_available(),
+                version = tmux.version().unwrap_or("none"),
+                "tmux backend"
+            );
+            app.manage(PtyManager::with_tmux(tmux));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -66,6 +83,9 @@ pub fn run() {
             commands::pty::pty_write,
             commands::pty::pty_resize,
             commands::pty::pty_kill,
+            commands::tmux::tmux_status,
+            commands::tmux::tmux_kill_session,
+            commands::tmux::tmux_prune_sessions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building ChenADE")

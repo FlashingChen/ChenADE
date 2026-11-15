@@ -1,10 +1,10 @@
 import { Terminal, type ITheme } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import type { Tab } from '@/features/tabs/store';
 import { useSettingsStore } from '@/features/settings/store';
+import { TERMINAL_FONT_FAMILY } from './fonts';
 import {
   disposeTerminalSession,
   getTerminalSession,
@@ -50,17 +50,8 @@ const THEME: ITheme = {
   brightWhite: '#ffffff',
 };
 
-/**
- * SF Mono（ui-monospace 在 macOS 的解析结果）画 box-drawing 有缝隙；
- * Maple Mono NF CN 的 CJK advance 正好是 ASCII 的 2.0 倍（实测 1200/600），
- * 是这套 TUI（中文 + 制表符）里最不容易错格的等宽字体。
- */
-const FONT_FAMILY =
-  "'Maple Mono NF CN', 'Maple Mono NF', 'JetBrains Mono', Menlo, Monaco, Hack, 'Cascadia Code', 'Noto Sans Mono', monospace";
-
 export interface TerminalEntry {
   term: Terminal;
-  fit: FitAddon;
   search: SearchAddon;
   session: TerminalSession;
 }
@@ -78,7 +69,7 @@ function createManaged(tab: TerminalTab): ManagedTerminal {
   const term = new Terminal({
     cursorBlink: true,
     cursorStyle: 'block',
-    fontFamily: FONT_FAMILY,
+    fontFamily: TERMINAL_FONT_FAMILY,
     fontSize: terminalFontSize,
     // 与字体自然行盒（实测 1.32 em）的差值决定 box-drawing 是否跨行连续；
     // 1 是 DOM renderer 下让竖线跨行闭合的取值（见 04-delivery「终端字形连续性」）。
@@ -89,9 +80,7 @@ function createManaged(tab: TerminalTab): ManagedTerminal {
     macOptionIsMeta: true,
   });
 
-  const fit = new FitAddon();
   const search = new SearchAddon();
-  term.loadAddon(fit);
   term.loadAddon(search);
 
   // 宽度表：xterm 5.5 内核只带 Unicode 6.3，会把 emoji/新符号按 1 格排版，
@@ -121,7 +110,7 @@ function createManaged(tab: TerminalTab): ManagedTerminal {
   term.write('\x1b[0m\x1b[2J\x1b[H');
   for (const chunk of session.getBuffer()) term.write(chunk);
 
-  return { term, fit, search, session, opened: false, disposers };
+  return { term, search, session, opened: false, disposers };
 }
 
 /** 把终端挂到给定容器；首次挂载时创建并 open，之后只搬 DOM 节点。 */
@@ -153,12 +142,61 @@ export function peekTerminalEntry(tabId: string): TerminalEntry | undefined {
   return managed.get(tabId);
 }
 
-/** 容器尺寸变化后重算行列；未挂载/未布局时静默跳过。 */
+/**
+ * 纯函数：按可用像素与字符格尺寸取整列行。
+ * 抽出来是为了给“可用宽度必须是内容盒（要减掉面板 padding 与滚动条）”这条规则上测试。
+ */
+export function computeGrid(
+  available: { width: number; height: number },
+  cell: { width: number; height: number },
+): { cols: number; rows: number } | null {
+  if (!(cell.width > 0) || !(cell.height > 0)) return null;
+  if (!(available.width > 0) || !(available.height > 0)) return null;
+  return {
+    cols: Math.max(2, Math.floor(available.width / cell.width)),
+    rows: Math.max(2, Math.floor(available.height / cell.height)),
+  };
+}
+
+/**
+ * 按容器内容盒重算行列。不用 `@xterm/addon-fit`：它用父元素 computed width 减去
+ * **xterm 元素自身** 的 padding，而我们把留白放在外层容器上，那段 padding 不会被减掉，
+ * 于是列数多算 2–3 列：字符网格比面板宽，TUI 的输入框右边线被推到面板外，
+ * 换行位置也和可视宽度对不上（docs/10-fixes-2026-11-15.md 第 2 节）。
+ *
+ * 这里直接反算字符格尺寸（`.xterm-screen` 实际宽高 ÷ 当前行列），再按宿主内容盒取整。
+ */
 export function fitTerminal(tabId: string): void {
   const entry = managed.get(tabId);
   if (!entry || !entry.opened) return;
+
+  const term = entry.term;
+  const root = term.element;
+  const host = root?.parentElement;
+  if (!root || !host) return;
+
+  const screen = root.querySelector<HTMLElement>('.xterm-screen');
+  if (!screen) return;
+
+  const bounds = screen.getBoundingClientRect();
+  const cell = {
+    width: bounds.width / Math.max(1, term.cols),
+    height: bounds.height / Math.max(1, term.rows),
+  };
+
+  // macOS 是 overlay 滚动条，不占宽度；Windows/Linux 的经典滚动条会占，实测差值最稳。
+  const viewport = root.querySelector<HTMLElement>('.xterm-viewport');
+  const scrollbar = viewport ? Math.max(0, viewport.offsetWidth - viewport.clientWidth) : 0;
+
+  const grid = computeGrid(
+    { width: host.clientWidth - scrollbar, height: host.clientHeight },
+    cell,
+  );
+  if (!grid) return;
+  if (grid.cols === term.cols && grid.rows === term.rows) return;
+
   try {
-    entry.fit.fit();
+    term.resize(grid.cols, grid.rows);
   } catch {
     // 容器尚未完成布局，或 pane 正在被工作树切换销毁。
   }
@@ -171,11 +209,9 @@ export function fitTerminal(tabId: string): void {
 export function setTerminalFontSize(tabId: string, fontSize: number): void {
   const entry = managed.get(tabId);
   if (!entry) return;
-  if (entry.term.options.fontSize === fontSize) {
-    fitTerminal(tabId);
-    return;
+  if (entry.term.options.fontSize !== fontSize) {
+    entry.term.options.fontSize = fontSize;
   }
-  entry.term.options.fontSize = fontSize;
   fitTerminal(tabId);
 }
 

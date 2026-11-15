@@ -3,7 +3,8 @@ import { useAppStore } from '@/app/store';
 import { Button } from '@/components/Button';
 import { IconButton } from '@/components/IconButton';
 import { XIcon } from '@/components/icons';
-import type { Settings } from '@/lib/types';
+import { ensureTerminalBackend } from '@/features/terminals/backend';
+import type { Settings, TmuxStatus } from '@/lib/types';
 import { DEFAULT_SETTINGS, useSettingsStore } from './store';
 import styles from './SettingsModal.module.css';
 
@@ -30,6 +31,12 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     String(DEFAULT_SETTINGS.terminalFontSize),
   );
   const shellRef = useRef<HTMLInputElement>(null);
+  const [backend, setBackend] = useState<TmuxStatus | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    void ensureTerminalBackend().then(setBackend);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -165,6 +172,15 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 </span>
               </div>
             </label>
+
+            <div className={styles.field}>
+              <span className={styles.label}>会话持久化</span>
+              <span className={styles.hint}>
+                {backend?.available
+                  ? `${backend.version ?? 'tmux'} · 随包内置，关闭应用后终端仍在运行，重开自动重连（当前 ${backend.sessions} 个会话）`
+                  : '未找到内置 tmux，回退普通 shell：关闭应用后终端进程不保留'}
+              </span>
+            </div>
           </section>
 
           <section className={styles.section}>

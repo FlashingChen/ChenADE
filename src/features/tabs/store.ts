@@ -9,6 +9,8 @@ export type Tab =
       title: string;
       cwd: string;
       autoStart: boolean;
+      /** 从 localStorage 恢复的标签：tmux 可用时自动重连，不弹“已恢复”遮罩。 */
+      restored?: boolean;
       initialCommand?: string;
     }
   | {
@@ -64,6 +66,7 @@ function readPersisted(worktreeId: string): PersistedTabs | null {
             title: tab.title,
             cwd: tab.cwd,
             autoStart: false,
+            restored: true,
           };
         }
         if (tab.kind === 'file') return tab;

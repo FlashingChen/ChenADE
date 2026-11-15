@@ -28,6 +28,9 @@ export class TerminalSession {
   exitCode: number | null = null;
   cols = 80;
   rows = 24;
+  /** 后端是 tmux 时会话可跨应用重启存活；关标签要显式 kill-session。 */
+  persistent = false;
+  backend: 'tmux' | 'shell' = 'shell';
 
   private chunks: Uint8Array[] = [];
   private channel: Channel<PtyEvent> | null = null;
@@ -74,6 +77,7 @@ export class TerminalSession {
           '真实终端会在 Tauri 桌面应用中启动。\r\n\r\n' +
           '\x1b[38;2;210;210;215m❯\x1b[0m ',
       );
+      this.emitState();
       return;
     }
 
@@ -92,6 +96,8 @@ export class TerminalSession {
           loadProfile: config.loadShellProfile,
           cols: this.cols,
           rows: this.rows,
+          // 标签 id 就是 tmux 会话键：重启后同一个标签能确定性重连。
+          persist: this.tabId,
         },
         onEvent: channel,
       });
@@ -103,6 +109,8 @@ export class TerminalSession {
 
       this.sessionId = result.sessionId;
       this.shell = result.shell;
+      this.persistent = result.persistent;
+      this.backend = result.backend;
       this.state = 'running';
       this.emitState();
 
@@ -116,7 +124,9 @@ export class TerminalSession {
         }).catch(() => undefined);
       }
 
-      if (this.initialCommand) {
+      // 重连已有 tmux 会话时不要再补发命令，否则会往正在跑的任务里灌输入。
+      const shouldRunInitial = this.initialCommand && (!result.persistent || result.created);
+      if (shouldRunInitial && this.initialCommand) {
         const command = this.initialCommand;
         setTimeout(() => {
           if (this.sessionId) this.write(`${command}\r`);
@@ -184,6 +194,10 @@ export class TerminalSession {
 
   dispose(): void {
     this.kill();
+    if (this.persistent) {
+      // 关标签 = 结束这个 tmux 会话；应用退出走的是 kill_all（只 detach）。
+      void call('tmux_kill_session', { key: this.tabId }).catch(() => undefined);
+    }
     this.channel = null;
     this.dataListeners.clear();
     this.stateListeners.clear();

@@ -3,6 +3,7 @@ pub mod files;
 pub mod git;
 pub mod projects;
 pub mod pty;
+pub mod tmux;
 pub mod worktrees;
 pub mod activity;
 pub mod search;

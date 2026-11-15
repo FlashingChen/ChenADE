@@ -86,6 +86,20 @@ export interface PtySpawnResult {
   sessionId: string;
   shell: string;
   pid: number;
+  /** "tmux" 表示终端跑在可重连的会话里，"shell" 表示普通 PTY。 */
+  backend: 'tmux' | 'shell';
+  persistent: boolean;
+  /** 新建会话为 true；重连已有 tmux 会话为 false。 */
+  created: boolean;
+  sessionName: string | null;
+}
+
+export interface TmuxStatus {
+  available: boolean;
+  version: string | null;
+  binary: string | null;
+  socket: string;
+  sessions: number;
 }
 
 export type PtyEvent =

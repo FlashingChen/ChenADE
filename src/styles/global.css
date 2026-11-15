@@ -1,5 +1,15 @@
 @import './tokens.css';
 
+/* 终端首选字体：ASCII 0.5 em / CJK 1.0 em 的标准 2:1 等宽，CJK 字面宽度正好等于两个字符格。
+   详见 docs/10-fixes-2026-11-15.md 第 1 节；字体加载完成前不要创建 Terminal（见 terminals/fonts.ts）。 */
+@font-face {
+  font-family: 'Sarasa Mono SC';
+  src: url('/fonts/SarasaMonoSC-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 *,
 *::before,
 *::after {

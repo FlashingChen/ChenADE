@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "resources/bin/tmux": "bin/tmux",
+      "resources/bin/LICENSE-tmux": "bin/LICENSE-tmux",
+      "resources/bin/LICENSE-libevent": "bin/LICENSE-libevent"
+    }
+  }
+}
