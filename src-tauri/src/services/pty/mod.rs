@@ -295,8 +295,21 @@ impl PtyManager {
             }
         }
         if pending > 0 {
-            let deadline = Instant::now() + Duration::from_millis(600);
+            let deadline = Instant::now() + Duration::from_millis(1200);
             while Instant::now() < deadline
+                && drained
+                    .iter()
+                    .any(|session| session.tmux_name.is_some() && !session.exited.load(Ordering::SeqCst))
+            {
+                thread::sleep(Duration::from_millis(10));
+            }
+
+            for session in &mut drained {
+                let _ = session.killer.kill();
+            }
+            // 给客户端退出 + server 摘客户端留时间，再让 pty 关闭。
+            let grace = Instant::now() + Duration::from_millis(400);
+            while Instant::now() < grace
                 && drained
                     .iter()
                     .any(|session| session.tmux_name.is_some() && !session.exited.load(Ordering::SeqCst))
@@ -317,10 +330,20 @@ impl PtyManager {
     fn detach_and_kill(&self, session: &mut Session) {
         if let Some(name) = session.tmux_name.clone() {
             let _ = self.tmux.detach_client(&name);
-            let deadline = Instant::now() + Duration::from_millis(600);
+            let deadline = Instant::now() + Duration::from_millis(1200);
             while !session.exited.load(Ordering::SeqCst) && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(10));
             }
+
+            // detach 没成功（例如客户端的 listing 查不到）时只能 SIGHUP，
+            // 但必须留时间让客户端退出并让 server 把客户端摘掉——否则紧接着关闭
+            // pty master 会把 tmux server 一起带走（CI 上实测）。
+            let _ = session.killer.kill();
+            let grace = Instant::now() + Duration::from_millis(400);
+            while !session.exited.load(Ordering::SeqCst) && Instant::now() < grace {
+                thread::sleep(Duration::from_millis(10));
+            }
+            return;
         }
         let _ = session.killer.kill();
     }
@@ -639,7 +662,12 @@ mod persist_tests {
             .spawn_with_sender(input, sender.clone())
             .expect("reattach tmux session");
         assert!(second.persistent);
-        assert!(!second.created, "session should already exist");
+        assert!(
+            !second.created,
+            "session should already exist; sessions={:?} clients={:?}",
+            manager.tmux().list_sessions(),
+            manager.tmux().client_ttys(&session_name)
+        );
         assert_eq!(second.session_name.as_deref(), Some(session_name.as_str()));
 
         // 重连时 tmux 整屏重绘：之前的输出重新出现在流里。

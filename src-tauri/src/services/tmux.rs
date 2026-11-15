@@ -138,13 +138,14 @@ impl Tmux {
     /// 所以先用 `list-clients` 取到该会话的客户端 tty，再用 `-s <tty>` 断开。
     pub fn detach_client(&self, session: &str) -> AppResult<()> {
         let mut ttys = Vec::new();
-        for attempt in 0..8 {
+        for attempt in 0..20 {
             ttys = self.client_ttys(session);
-            if !ttys.is_empty() || attempt == 7 {
+            if !ttys.is_empty() || attempt == 19 {
                 break;
             }
             // 同样的 socket 竞态：server 刚绑定完时第一次查询可能看不到客户端。
-            std::thread::sleep(std::time::Duration::from_millis(25));
+            // CI 的 runner 更慢，给到 1s，避免“查不到客户端 → 直接 kill → server 一起没”。
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
         for tty in ttys {
             let Some(mut command) = self.base_command() else {
@@ -161,10 +162,18 @@ impl Tmux {
                     AppError::new("TMUX_ERROR", "无法断开终端会话").detail(error.to_string())
                 })?;
         }
+
+        // 等到 server 真的把客户端摘掉：detach-client 返回成功 ≠ 断开已完成。
+        for _ in 0..24 {
+            if self.client_ttys(session).is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
         Ok(())
     }
 
-    fn client_ttys(&self, session: &str) -> Vec<String> {
+    pub fn client_ttys(&self, session: &str) -> Vec<String> {
         let Some(mut command) = self.base_command() else {
             return Vec::new();
         };
