@@ -1,0 +1,13 @@
+* text=auto
+
+# 二进制资源：不要让 git/GitHub 当文本做 diff
+*.png  binary
+*.jpg  binary
+*.webp binary
+*.ico  binary
+*.icns binary
+*.woff2 binary
+src-tauri/resources/bin/tmux binary
+
+# 生成文件：折叠在 PR 里
+pnpm-lock.yaml -diff linguist-generated

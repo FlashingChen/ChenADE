@@ -88,11 +88,12 @@
 
 ## 下载
 
-macOS（Apple Silicon）安装包见 [Releases](https://github.com/FlashingChen/ChenADE/releases)：
-下载 `ChenADE_x.y.z_aarch64.dmg`，拖动到「应用程序」即可。
+macOS（Apple Silicon）安装包由 [Releases](https://github.com/FlashingChen/ChenADE/releases) 提供：
+打一个 `v*` tag（或手动触发 `release.yml`）就会自动构建三端产物并挂到 Release 上，
+下载 `ChenADE_x.y.z_aarch64.dmg` 拖进「应用程序」即可。
 
 > 个人项目，未做 Apple 公证：首次打开如被 Gatekeeper 拦下，右键 → 打开，或到
-> 「系统设置 → 隐私与安全性」里放行。Intel / Windows / Linux 目前请从源码构建。
+> 「系统设置 → 隐私与安全性」里放行。Intel Mac / Windows / Linux 目前请从源码构建。
 
 <br/>
 
