@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/app/store';
 import { useWorktreesStore } from '@/features/worktrees/store';
 import { useUiStore } from '@/features/ui/store';
+import { useTabsStore } from '@/features/tabs/store';
 import { shortPath } from '@/lib/format';
+import type { Worktree } from '@/lib/types';
 import { call, toAppError } from '@/lib/ipc';
 import { confirmAction } from '@/lib/confirm';
 import { Button } from './Button';
@@ -41,6 +44,13 @@ export function ProjectRail() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    worktree: Worktree;
+    projectId: string;
+  } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
 
   const query = filter.trim().toLowerCase();
@@ -53,6 +63,24 @@ export function ProjectRail() {
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [contextMenu]);
 
   const revealProject = async () => {
     if (!currentProject) return;
@@ -109,6 +137,59 @@ export function ProjectRail() {
       return false;
     });
   }, [projects, query, worktreeProjectId, worktrees]);
+
+  const revealWorktree = async (worktree: Worktree) => {
+    try {
+      await call('project_reveal', { path: worktree.path });
+    } catch (error) {
+      notify(toAppError(error).message, 'error');
+    }
+  };
+
+  const copyWorktreePath = async (worktree: Worktree) => {
+    try {
+      await navigator.clipboard.writeText(worktree.path);
+      notify('已复制工作树路径', 'success');
+    } catch {
+      notify('复制路径失败', 'error');
+    }
+  };
+
+  const removeWorktree = async (worktree: Worktree, projectId: string) => {
+    if (worktree.isMain) return;
+    if (!(await confirmAction(`删除工作树「${worktree.branch ?? worktree.path}」？`))) return;
+
+    try {
+      await call('worktree_remove', {
+        projectId,
+        path: worktree.path,
+        force: false,
+      });
+    } catch (error) {
+      const appError = toAppError(error);
+      const force = await confirmAction(`${appError.message}。是否强制删除？`);
+      if (!force) return;
+      try {
+        await call('worktree_remove', {
+          projectId,
+          path: worktree.path,
+          force: true,
+        });
+      } catch (forceError) {
+        notify(toAppError(forceError).message, 'error');
+        return;
+      }
+    }
+
+    if (useTabsStore.getState().worktreeId === worktree.id) {
+      useTabsStore.getState().closeAll();
+    } else {
+      localStorage.removeItem(`chenade.tabs.${worktree.id}`);
+    }
+    await useWorktreesStore.getState().load(projectId);
+    notify('工作树已删除', 'success');
+    setContextMenu(null);
+  };
 
   const toggleProject = (id: string) => {
     const isExpanded = expanded[id] ?? id === currentProjectId;
@@ -232,6 +313,15 @@ export function ProjectRail() {
                           .filter(Boolean)
                           .join(' ')}
                         onClick={() => void selectWorktree(worktree.id)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            worktree,
+                            projectId: project.id,
+                          });
+                        }}
                         title={`${shortPath(worktree.path)}\n${worktree.headSubject}`}
                       >
                         <BranchIcon
@@ -291,6 +381,75 @@ export function ProjectRail() {
           添加项目
         </Button>
       </div>
+
+      {contextMenu
+        ? createPortal(
+            <div
+              ref={contextMenuRef}
+              className={styles.contextMenu}
+              style={{
+                left: Math.min(contextMenu.x, window.innerWidth - 210),
+                top: Math.min(contextMenu.y, window.innerHeight - 230),
+              }}
+              role="menu"
+            >
+              <div className={styles.contextHeader}>
+                <strong>{contextMenu.worktree.branch ?? 'detached HEAD'}</strong>
+                <span>{shortPath(contextMenu.worktree.path)}</span>
+              </div>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  setContextMenu(null);
+                  void selectWorktree(contextMenu.worktree.id);
+                }}
+              >
+                打开工作树
+              </button>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  const worktree = contextMenu.worktree;
+                  setContextMenu(null);
+                  void revealWorktree(worktree);
+                }}
+              >
+                在文件管理器中显示
+              </button>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  const worktree = contextMenu.worktree;
+                  setContextMenu(null);
+                  void copyWorktreePath(worktree);
+                }}
+              >
+                复制工作树路径
+              </button>
+              <button
+                className={styles.contextItem}
+                onClick={() => {
+                  setContextMenu(null);
+                  void useWorktreesStore.getState().refreshStatus();
+                }}
+              >
+                刷新状态
+              </button>
+              <button
+                className={styles.contextDanger}
+                disabled={contextMenu.worktree.isMain}
+                onClick={() => {
+                  const { worktree, projectId } = contextMenu;
+                  setContextMenu(null);
+                  void removeWorktree(worktree, projectId);
+                }}
+              >
+                删除工作树
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </aside>
   );
 }

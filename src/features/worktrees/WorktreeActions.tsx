@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/app/store';
 import { IconButton } from '@/components/IconButton';
-import { FolderOpenIcon, MoreIcon, RefreshIcon, TrashIcon } from '@/components/icons';
+import { FolderOpenIcon, MoreIcon, RefreshIcon } from '@/components/icons';
 import { confirmAction } from '@/lib/confirm';
 import { call, toAppError } from '@/lib/ipc';
 import { useTabsStore } from '@/features/tabs/store';
@@ -82,14 +82,6 @@ export function WorktreeActions({ worktree }: { worktree: Worktree }) {
       </IconButton>
       <IconButton label="在文件管理器中显示" onClick={() => void reveal()}>
         <FolderOpenIcon size={13} />
-      </IconButton>
-      <IconButton
-        label="删除工作树"
-        className={styles.danger}
-        disabled={worktree.isMain}
-        onClick={() => void removeWorktree()}
-      >
-        <TrashIcon size={13} />
       </IconButton>
       <div className={styles.menuWrap}>
         <IconButton label="更多操作" onClick={() => setMenuOpen((value) => !value)}>

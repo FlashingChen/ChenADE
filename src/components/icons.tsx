@@ -195,13 +195,6 @@ export function AttachIcon({ size = 16, className, style, strokeWidth = 1.3 }: I
   );
 }
 
-export function TrashIcon({ size = 16, className, style, strokeWidth = 1.3 }: IconProps) {
-  return (
-    <svg {...base(size)} className={className} style={style} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3.2 4.8h9.6M6 4.8V3.4h4v1.4M4.6 4.8l.5 8.2h5.8l.5-8.2M6.6 7v3.8M9.4 7v3.8" />
-    </svg>
-  );
-}
 
 export function LogoMark({ size = 16, className, style }: IconProps) {
   return (
